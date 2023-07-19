@@ -1,0 +1,69 @@
+import yaml
+from rich.console import Console
+import math
+from collections import Counter
+
+class Guesser:
+    def __init__(self, manual):
+        self.word_list = yaml.load(open('wordlist.yaml'), Loader=yaml.FullLoader)
+        self._possible_words = self.word_list.copy()
+        self._manual = manual
+        self.console = Console()
+        self._tried = []
+    
+    def restart_game(self):
+        self._tried = []
+        self._possible_words = self.word_list.copy()
+     
+    def calculate_entropy(self, word):
+        char_count_list = [Counter() for _ in range(len(word))]
+        for w in self._possible_words:
+            for i, c in enumerate(w):
+                char_count_list[i][c] += 1
+        
+        e=0        
+        for i, char_counts in enumerate(char_count_list):
+            total_freq = sum(char_counts.values())
+            p = char_counts[word[i]] / total_freq
+            e += -p * math.log2(p)
+        return e
+        
+    def find_highest_entropy_word(self):
+        max_entropy_word = max((word for word in self._possible_words), key=self.calculate_entropy)
+        return max_entropy_word
+
+    def get_guess(self, result):
+        if len(self._tried)==0:
+            guess = "crane"
+         
+        else:
+            prev_guess = self._tried[-1]
+            # remove words containing a letter that received a feedback "+" and the letter was not already discovered
+            for i in range(5):
+                if result[i] == "+" and (prev_guess[i] not in result and result[prev_guess.find(prev_guess[i])] != "-"):
+                    a = [word for word in self._possible_words if prev_guess[i] in word]
+                    for x in a:
+                        self._possible_words.remove(x)
+
+            # remove words not containing a letter in the right position if feedback "abcde..."
+            for i,c in enumerate(result):
+                if c!="+" and c!="-":
+                    temp=[word for word in self._possible_words if word[i]!=prev_guess[i]]
+                    for x in temp:
+                        self._possible_words.remove(x)
+        
+            # remove words containing a letter that received a feedback "-"
+            for i in range(5):
+                if result[i] == "-":
+                    a = [word for word in self._possible_words if prev_guess[i] == word[i] or prev_guess[i] not in word]
+                    for x in a:
+                        self._possible_words.remove(x)
+
+            self._possible_words = [word for word in self._possible_words if word not in self._tried]
+            guess = self.find_highest_entropy_word()
+
+        self._tried.append(guess)
+        self.console.print(guess)
+
+        return guess
+    
